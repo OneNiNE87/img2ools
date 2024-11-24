@@ -1,9 +1,8 @@
 from PIL import Image
 import os
 import sys
-from datetime import datetime
 
-def stitch_images_in_directory(input_dir):
+def stitch_images_in_grid(input_dir, rows, cols):
     # Get a list of all files in the input directory
     files = os.listdir(input_dir)
     
@@ -18,33 +17,37 @@ def stitch_images_in_directory(input_dir):
         return None
     
     images = []
-    max_height = 0
-    
-    # Open and collect image objects, and determine the maximum height
     for image_file in image_files:
         image_path = os.path.join(input_dir, image_file)
         img = Image.open(image_path).convert('RGB')
         images.append(img)
-        if img.height > max_height:
-            max_height = img.height
     
-    # Calculate the new width for each image based on the maximum height
-    scaled_images = []
-    for img in images:
-        ratio = max_height / img.height
-        new_width = int(img.width * ratio)
-        scaled_img = img.resize((new_width, max_height), Image.LANCZOS)  # Use LANCZOS for high-quality resizing
-        scaled_images.append(scaled_img)
+    # Check if we have enough images for the grid
+    if len(images) < rows * cols:
+        print(f"Warning: Only {len(images)} images found, which is less than the requested {rows * cols} images for the grid.")
     
-    # Create the result image
-    total_width = sum(img.width for img in scaled_images)
-    result_image = Image.new('RGB', (total_width, max_height))
+    # Resize images to fit in the grid (optional)
+    width, height = images[0].size
+    grid_width = width * cols
+    grid_height = height * rows
+    
+    result_image = Image.new('RGB', (grid_width, grid_height))
+
+    # Paste the images onto the result image
     x_offset = 0
-    
-    # Paste the scaled images onto the result image
-    for img in scaled_images:
-        result_image.paste(img, (x_offset, 0))
+    y_offset = 0
+    for i in range(len(images)):
+        img = images[i]
+        result_image.paste(img, (x_offset, y_offset))
+
+        # Move to the next column
         x_offset += img.width
+        if (i + 1) % cols == 0:  # Move to the next row after the last column
+            x_offset = 0
+            y_offset += img.height
+
+        if (i + 1) >= rows * cols:  # Only use the first `rows * cols` images
+            break
     
     return result_image
 
@@ -62,21 +65,24 @@ def generate_output_filename(image_files):
     return output_filename
 
 if __name__ == "__main__":
-    # Check if an input directory is provided as a command-line argument
-    if len(sys.argv) < 2:
-        print("Usage: python Stitcher.py <input_directory>")
-        sys.exit(1)
-    
-    # Get the input directory path from the command-line argument
-    input_dir = sys.argv[1]
-    
+    # Get the input directory path from the user
+    input_dir = input("Enter the directory path containing images: ")
+
     # Validate the input directory
     if not os.path.isdir(input_dir):
         print("Error: Input directory does not exist.")
         sys.exit(1)
-    
-    # Stitch images in the specified input directory
-    result = stitch_images_in_directory(input_dir)
+
+    # Ask the user for the grid dimensions (rows and columns)
+    try:
+        rows = int(input("Enter the number of rows (A): "))
+        cols = int(input("Enter the number of columns (B): "))
+    except ValueError:
+        print("Error: Please enter valid integers for rows and columns.")
+        sys.exit(1)
+
+    # Stitch images into a grid based on user input
+    result = stitch_images_in_grid(input_dir, rows, cols)
     
     if result:
         result.show()  # Display the stitched image
